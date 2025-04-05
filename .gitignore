@@ -2,3 +2,4 @@
 /sessions
 *test*
 /.idea
+Cargo.lock
