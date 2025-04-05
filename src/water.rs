@@ -94,7 +94,7 @@ fn load_script(sid: String, token: Option<String>) -> String {
             }})
             .catch(error => console.error('Error:', error));
     }}
-</script>", get_hostname(), token.or(Some("YOU ARE NOT THE OWNER".to_string())).unwrap())
+</script>", get_hostname(), token.unwrap_or("YOU ARE NOT THE OWNER".to_string()))
 }
 
 pub fn load_all(sid: String, expiration: u64, files: Vec<(String, u64)>, token: Option<String>) -> String {

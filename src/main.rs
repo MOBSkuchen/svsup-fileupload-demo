@@ -49,7 +49,7 @@ fn get_hostname() -> String {
 
 fn get_domain() -> String {
     let hst = HOSTNAME.lock().unwrap();
-    hst.split_once(':').or(Some((hst.as_str(), ""))).unwrap().0.to_string()
+    hst.split_once(':').unwrap_or((hst.as_str(), "")).0.to_string()
 }
 
 const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
@@ -132,21 +132,21 @@ async fn session(req: HttpRequest, mut payload: Multipart) -> Result<HttpRespons
     let expiration_opt = req.headers().get("expiration");
     if expiration_opt.is_none() {
         cleanup(&session_id).expect("Failed to remove stuff");
-        return Ok(HttpResponse::BadRequest().body("Key not found, expiration").into())
+        return Ok(HttpResponse::BadRequest().body("Key not found, expiration"))
     }
     let expiration = expiration_opt.unwrap().to_str().unwrap().to_string().parse::<u64>();
     if expiration.is_err() {
-        return Ok(HttpResponse::BadRequest().body("Key is not a u64, expiration").into())
+        return Ok(HttpResponse::BadRequest().body("Key is not a u64, expiration"))
     }
     let access_token = random_str(DEFAULT_RND_STR_LEN);
 
     let mut file_count = 0;
     while let Some(field) = payload.next().await {
         let mut field = field?;
-        let content_disposition = field.content_disposition().clone();
+        let content_disposition = field.content_disposition();
         let filename = content_disposition.unwrap().get_filename().unwrap_or("default.bin");
         if filename == ".token" || filename == ".expiration" {
-            return Ok(HttpResponse::BadRequest().body("Got filename with reserved name (.token or .expiration)").into())
+            return Ok(HttpResponse::BadRequest().body("Got filename with reserved name (.token or .expiration)"))
         }
         let filepath = Path::new(format!("sessions/{session_id}").as_str()).join(filename);
 
@@ -195,7 +195,7 @@ async fn delete(req: HttpRequest, path: web::Path<String>) -> Result<HttpRespons
     remove.set_path("/");
     remove.make_removal();
     if token_opt.is_none() {
-        return Ok(HttpResponse::BadRequest().body("Key not found, token").into())
+        return Ok(HttpResponse::BadRequest().body("Key not found, token"))
     }
     let token = token_opt.unwrap().to_str().unwrap().to_string();
     if fs::read_to_string(format!("sessions/{session_id}/.token")).is_ok_and(|t| {token == t}) {
@@ -210,12 +210,12 @@ async fn delete(req: HttpRequest, path: web::Path<String>) -> Result<HttpRespons
 async fn is_entry_owner(req: HttpRequest) -> Result<HttpResponse, Error> {
     let session_opt = req.headers().get("session");
     if session_opt.is_none() {
-        return Ok(HttpResponse::BadRequest().body("Key not found, session").into())
+        return Ok(HttpResponse::BadRequest().body("Key not found, session"))
     }
     let session_id = session_opt.unwrap().to_str().unwrap().to_string();
     let token_opt = req.headers().get("token");
     if token_opt.is_none() {
-        return Ok(HttpResponse::BadRequest().body("Key not found, token").into())
+        return Ok(HttpResponse::BadRequest().body("Key not found, token"))
     }
     let token = token_opt.unwrap().to_str().unwrap().to_string();
     if fs::read_to_string(format!("sessions/{session_id}/.token")).is_ok_and(|t| {token == t}) {
@@ -261,9 +261,9 @@ where T: Write+Seek
             let mut f = File::open(path)?;
 
             f.read_to_end(&mut buffer)?;
-            zip.write_all(&*buffer)?;
+            zip.write_all(&buffer)?;
             buffer.clear();
-        } else if name.as_os_str().len() != 0 {
+        } else if !name.as_os_str().is_empty() {
             zip.add_directory_from_path(name, options.clone())?;
         }
     }
@@ -277,9 +277,9 @@ fn doit(src_dir: &str, dst_file: &str) -> zip::result::ZipResult<()> {
     }
 
     let path = Path::new(dst_file);
-    let file = File::create(&path).expect("Failed to create zip file");
+    let file = File::create(path).expect("Failed to create zip file");
 
-    let walkdir = WalkDir::new(src_dir.to_string());
+    let walkdir = WalkDir::new(src_dir);
     let it = walkdir.into_iter().filter_entry(|entry: &DirEntry| {
         let filename = entry.file_name().to_string_lossy();
         filename != ".token" && filename != ".expiration"
@@ -293,7 +293,7 @@ fn doit(src_dir: &str, dst_file: &str) -> zip::result::ZipResult<()> {
 async fn get_info(req: HttpRequest) -> Result<HttpResponse, Error> {
     let session_opt = req.headers().get("session");
     if session_opt.is_none() {
-        return Ok(HttpResponse::BadRequest().body("Key not found, session").into())
+        return Ok(HttpResponse::BadRequest().body("Key not found, session"))
     }
     let session_id = session_opt.unwrap().to_str().unwrap().to_string();
     if !fs::exists(format!("sessions/{session_id}"))? {
@@ -306,8 +306,8 @@ async fn get_info(req: HttpRequest) -> Result<HttpResponse, Error> {
         .map(|x| {format!("{} {}", x.1, x.0)}).collect();
     let mut resp = HttpResponse::Ok().body(files_and_sizes.join("\n"));
     let headers = resp.headers_mut();
-    headers.insert("expiration".parse().unwrap(), HeaderValue::from_str(&*exp.to_string())?);
-    headers.insert("owner".parse().unwrap(), HeaderValue::from_str(&*is_owner.to_string())?);
+    headers.insert("expiration".parse().unwrap(), HeaderValue::from_str(&exp.to_string())?);
+    headers.insert("owner".parse().unwrap(), HeaderValue::from_str(&is_owner.to_string())?);
     Ok(resp)
 }
 
@@ -335,7 +335,7 @@ async fn download_zip(req: HttpRequest, path: web::Path<String>) -> Result<HttpR
         return Ok(HttpResponse::NotFound().body("Non existent session or file within session"))
     }
     let filename = temp_dir().join(random_str(50)).to_str().unwrap().to_string();
-    doit(&*path, &*filename).expect("Failed to save zip");
+    doit(&path, &filename).expect("Failed to save zip");
     match NamedFile::open(&filename) {
         Ok(named_file) => {
             let mut response = named_file.use_last_modified(false).prefer_utf8(true).into_response(&req);
@@ -365,7 +365,7 @@ async fn load_index(req: HttpRequest) -> Result<HttpResponse, Error> {
 async fn load_sesh(req: HttpRequest, path: web::Path<String>) -> Result<HttpResponse, Error> {
     let session_id = path.into_inner();
     let exists = fs::exists(format!("sessions/{session_id}"))?;
-    let cookie_x = req.cookie(&*session_id);
+    let cookie_x = req.cookie(&session_id);
 
     // Doesn't work, not reaaalllyyy a point in updating this
     // if !exists && cookie_x.is_some() {
