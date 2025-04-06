@@ -43,7 +43,7 @@ fn load_bottom(is_owner: bool) -> String {
 }
 
 fn load_head(sid: &String) -> String {
-    format!("<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Viewing: {sid}</title>\n<link rel=\"stylesheet\" href=\"/style.css\">\n</head>")
+    format!("<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Viewing: {sid}</title>\n<link rel=\"stylesheet\" href=\"/r/style.css\">\n</head>")
 }
 
 fn load_list(files: Vec<(String, u64)>) -> String {
