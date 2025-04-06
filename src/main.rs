@@ -366,13 +366,6 @@ async fn load_sesh(req: HttpRequest, path: web::Path<String>) -> Result<HttpResp
     let session_id = path.into_inner();
     let exists = fs::exists(format!("sessions/{session_id}"))?;
     let cookie_x = req.cookie(&session_id);
-
-    // Doesn't work, not reaaalllyyy a point in updating this
-    // if !exists && cookie_x.is_some() {
-    //     let mut response = HttpResponse::Ok().finish();
-    //     response.add_removal_cookie(&Cookie::named(session_id).)?;
-    //     return Ok(response);
-    // }
     
     if !exists {
         return Ok(HttpResponse::NotFound().finish())
