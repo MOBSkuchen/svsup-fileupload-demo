@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::fs;
 use std::fs::FileType;
 use chrono::{DateTime, Local, TimeZone, Utc};
@@ -150,5 +149,5 @@ pub fn load_err_html(status: u16) -> io::Result<String> {
     } else {
         ERROR_TEMPLATE.to_string()
     };
-    Ok(content.replace("{{errid}}", &*status.to_string()))
+    Ok(content.replace("{{errid}}", &status.to_string()))
 }

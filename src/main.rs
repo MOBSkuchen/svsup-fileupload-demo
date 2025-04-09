@@ -14,7 +14,6 @@ use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::dev::ServiceResponse;
 use actix_web::http::header::ContentType;
-use actix_web::web::resource;
 use tokio::task;
 use lazy_static::lazy_static;
 use crate::fileupload::{delete, download_file, download_zip, fup_ld_index, get_info, is_entry_owner, load_sesh, upload};
