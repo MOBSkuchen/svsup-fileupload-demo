@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="/r/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suprime Sonvogel</title>
+</head>
+<body>
+    <h1>Suprime Sonvogel → Fileupload</h1>
+    <div class="time-inputs">
+        <label for="days">Days:</label>
+        <input type="number" id="days" min="0" value="0" onchange="updateTargetTime()">
+        
+        <label for="hours">Hours:</label>
+        <input type="number" id="hours" min="0" max="23" value="0" onchange="updateTargetTime()">
+        
+        <label for="minutes">Minutes:</label>
+        <input type="number" id="minutes" min="0" max="59" value="5" onchange="updateTargetTime()">
+    </div>
+    <div class="time-show">
+        <h3 id="targetTime">Expires at: Not loaded</h3>
+    </div>
+    <div id="drop-zone">Drag your files here</div>
+</body>
+</html>
+
+<script>
+    function updateTargetTime() {
+      const days = parseInt(document.getElementById("days").value) || 0;
+      const hours = parseInt(document.getElementById("hours").value) || 0;
+      const minutes = parseInt(document.getElementById("minutes").value) || 0;
+
+      const currentTime = new Date();
+
+      currentTime.setDate(currentTime.getDate() + days);
+      currentTime.setHours(currentTime.getHours() + hours);
+      currentTime.setMinutes(currentTime.getMinutes() + minutes);
+
+      const targetTimeString = currentTime.toUTCString();
+
+      document.getElementById("targetTime").textContent = "Expires at: " + targetTimeString;
+    }
+
+    updateTargetTime();
+    const dropZone = document.getElementById("drop-zone");
+    dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("dragover");
+    });
+
+    dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("dragover");
+    });
+
+    dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("dragover");
+        const files = e.dataTransfer.files;
+        if (files.length > 10) {
+            alert(`These are too many files (${files.length}). Allowed are up to 10!`)
+            return
+        }
+        if (files.length > 0 && (days || hours || minutes)) {
+            const offset = calculateExpirationOffset(days, hours, minutes);
+            if (offset < 300) {
+            alert("Must expire in at least 5 minutes!")
+        }
+            uploadFiles(files, offset);
+        } else {
+            alert("Please specify a valid expiration time.");
+        }
+    });
+
+    function calculateExpirationOffset() {
+        const days = parseInt(document.getElementById("days").value) || 0;
+        const hours = parseInt(document.getElementById("hours").value) || 0;
+        const minutes = parseInt(document.getElementById("minutes").value) || 0;
+
+        const daysInMinutes = days * 24 * 60;
+        const hoursInMinutes = hours * 60;
+        return (daysInMinutes + hoursInMinutes + parseInt(minutes)) * 60;
+    }
+
+    function uploadFiles(files, expirationOffset) {
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            if (files[i].size > (10 * 1024 * 1024)) {
+                alert(`This file is too large (${files[i].name}), the maximum size is 10MB`)
+                return
+            }
+            formData.append("files", files[i]);
+        }
+
+        fetch("upload", {
+            credentials: "same-origin",
+            method: "POST",
+            headers: {
+                "expiration": expirationOffset.toString(),
+            },
+            body: formData,
+        })
+        .then((data) => {
+            console.log(data.headers.get("session"), data.headers)
+            window.location = "session/" + data.headers.get("session")
+        })
+        .catch((error) => {
+            alert("Failed! " + error.code)
+            console.log(error);
+        });
+    }
+
+    setInterval(updateTargetTime, 1000)
+</script>

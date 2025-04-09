@@ -16,7 +16,7 @@ use walkdir::{DirEntry, WalkDir};
 use zip::result::ZipError;
 use zip::write::{ExtendedFileOptions, FileOptions};
 use crate::{get_domain, random_str, DEFAULT_RND_STR_LEN};
-use crate::water::{get_index, get_style, load_all};
+use crate::water::{get_fileupload_index, load_all};
 
 const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
 const MAX_FILES: usize = 10;
@@ -92,8 +92,7 @@ pub async fn background_cleanup(folder_path: &'static str) {
     }
 }
 
-#[actix_web::get("/f/upload")]
-pub async fn session(req: HttpRequest, mut payload: Multipart) -> Result<HttpResponse, Error> {
+pub async fn upload(req: HttpRequest, mut payload: Multipart) -> Result<HttpResponse, Error> {
     let session_id = random_str(DEFAULT_RND_STR_LEN);
     fs::create_dir(format!("sessions/{session_id}"))?;
     let expiration_opt = req.headers().get("expiration");
@@ -154,7 +153,6 @@ pub async fn session(req: HttpRequest, mut payload: Multipart) -> Result<HttpRes
     )
 }
 
-#[actix_web::get("/f/delete/{session}")]
 pub async fn delete(req: HttpRequest, path: web::Path<String>) -> Result<HttpResponse, Error> {
     let session_id = path.into_inner();
     let token_opt = req.headers().get("token");
@@ -175,7 +173,6 @@ pub async fn delete(req: HttpRequest, path: web::Path<String>) -> Result<HttpRes
     }
 }
 
-#[actix_web::get("/f/is-owner")]
 pub async fn is_entry_owner(req: HttpRequest) -> Result<HttpResponse, Error> {
     let session_opt = req.headers().get("session");
     if session_opt.is_none() {
@@ -259,7 +256,6 @@ fn doit(src_dir: &str, dst_file: &str) -> zip::result::ZipResult<()> {
     Ok(())
 }
 
-#[actix_web::get("/f/get-info")]
 pub async fn get_info(req: HttpRequest) -> Result<HttpResponse, Error> {
     let session_opt = req.headers().get("session");
     if session_opt.is_none() {
@@ -281,7 +277,6 @@ pub async fn get_info(req: HttpRequest) -> Result<HttpResponse, Error> {
     Ok(resp)
 }
 
-#[actix_web::get("/f/download/{session}/{file}")]
 pub async fn download_file(req: HttpRequest, path: web::Path<(String, String)>) -> Result<HttpResponse, Error> {
     let (session_id, filename) = path.into_inner();
     let path = format!("sessions/{session_id}/{filename}");
@@ -299,7 +294,6 @@ pub async fn download_file(req: HttpRequest, path: web::Path<(String, String)>) 
     }
 }
 
-#[actix_web::get("/f/download/{session}")]
 pub async fn download_zip(req: HttpRequest, path: web::Path<String>) -> Result<HttpResponse, Error> {
     let session_id = path.into_inner();
     let path = format!("sessions/{session_id}");
@@ -324,17 +318,15 @@ pub async fn download_zip(req: HttpRequest, path: web::Path<String>) -> Result<H
     }
 }
 
-#[actix_web::get("/f/")]
-pub async fn load_index(req: HttpRequest) -> Result<HttpResponse, Error> {
+pub async fn fup_ld_index(req: HttpRequest) -> Result<HttpResponse, Error> {
     for cookie in req.cookies().unwrap().iter() {
         if fs::exists(format!("sessions/{}", cookie.name()))? {
-            return Ok(Redirect::to(format!("/session/{}", cookie.name())).respond_to(&req).map_into_boxed_body())
+            return Ok(Redirect::to(format!("/f/session/{}", cookie.name())).respond_to(&req).map_into_boxed_body())
         }
     }
-    Ok(HttpResponse::Ok().body(get_index()?))
+    Ok(HttpResponse::Ok().body(get_fileupload_index()?))
 }
 
-#[actix_web::get("/f/session/{session}")]
 pub async fn load_sesh(req: HttpRequest, path: web::Path<String>) -> Result<HttpResponse, Error> {
     let session_id = path.into_inner();
     let exists = fs::exists(format!("sessions/{session_id}"))?;

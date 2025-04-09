@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viewing: {{sid}}</title>
+  <link rel="stylesheet" href="/r/style.css">
+</head>
+<body>
+<h1 id="id" onClick="copyLink()">{{sid}}</h1>
+<h2>Expires at: {{expires}}</h2>
+
+<div class="file-list">
+  {{file_items}}
+</div>
+
+<button class="download-all-btn" onclick="downloadAll()">Download All</button>
+{{delete_button}}
+
+<script>
+  const sessionId = '{{sid}}';
+
+  function downloadFile(filename, _id_) {
+    window.location.href = `/f/download/${sessionId}/${filename}`;
+    const element = document.getElementById(_id_);
+    element.style.color = 'gold';
+    setTimeout(() => {
+      element.style.color = 'white';
+    }, 1000);
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(`{{hostname}}/f/session/${sessionId}`);
+    const element = document.getElementById("id");
+    element.style.color = 'pink';
+    setTimeout(() => {
+      element.style.color = 'rgb(129, 129, 129)';
+    }, 1000);
+  }
+
+  function downloadAll() {
+    window.location.href = `/f/download/${sessionId}`;
+    const element = document.getElementById("id");
+    element.style.color = 'green';
+    setTimeout(() => {
+      element.style.color = 'rgb(129, 129, 129)';
+    }, 1000);
+  }
+
+  function deleteAll() {
+    fetch(`/f/delete/${sessionId}`, {
+      method: 'POST',
+      credentials: "same-origin",
+      headers: {
+        "token": '{{token}}'
+      }
+    }).then(data => {
+      window.location = "/f/index";
+    }).catch(error => console.error('Error:', error));
+  }
+</script>
+</body>
+</html>

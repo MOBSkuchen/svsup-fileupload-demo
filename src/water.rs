@@ -1,10 +1,15 @@
+use std::fmt::format;
 use std::fs;
-use chrono::{DateTime, TimeZone, Utc};
+use std::fs::FileType;
+use chrono::{DateTime, Local, TimeZone, Utc};
 use futures_util::io;
 use crate::{get_hostname, random_str};
 
 const STYLE_FILE: &str = include_str!("../style.css");
-const INDEX_FILE: &str = include_str!("../index.html");
+const FILE_UPLOAD_INDEX: &str = include_str!("../fup-index.html");
+const INDEX: &str = include_str!("../index.html");
+const FUP_SESSION: &str = include_str!("../fup-session.html");
+const ERROR_TEMPLATE: &str = include_str!("../error.html");
 
 fn format_file_size(size: u64) -> String {
     let units = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -24,89 +29,41 @@ fn format_utc_time(timestamp: u64) -> String {
     datetime.format("%Y-%m-%d %H:%M:%S UTC").to_string()
 }
 
-fn load_file(filename: String, filesize: u64) -> String {
-    let str = random_str(12);
-    format!("<div class=\"file-item\">\n<span id=\"{str}\" class=\"file-info\">{filename}</span>\n<h3 class=\"file-size\">{}</h3>\n<button class=\"download-btn\" onclick=\"downloadFile('{filename}', '{str}')\">Download</button>\n</div>",
-            format_file_size(filesize))
-}
-
-fn load_top(sid: &String, expiration: u64) -> String {
-    format!("<h1 id=\"id\" onClick=\"copyLink()\">{sid}</h1>\n<h2>Expires at: {}</h2>", format_utc_time(expiration))
-}
-
-fn load_bottom(is_owner: bool) -> String {
-    let mut one = "<button class=\"download-all-btn\" onclick=\"downloadAll()\">Download All</button>".to_string();
-    if is_owner {
-        one += "<button class=\"delete-all-btn\" onclick=\"deleteAll()\">Delete All</button>";
-    }
-    one
-}
-
-fn load_head(sid: &String) -> String {
-    format!("<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Viewing: {sid}</title>\n<link rel=\"stylesheet\" href=\"/r/style.css\">\n</head>")
-}
-
-fn load_list(files: Vec<(String, u64)>) -> String {
-    let mut one = "<div class=\"file-list\">".to_string();
-    for file in files {
-        one += load_file(file.0, file.1).as_str();
-    }
-    one += "</div>";
-    one
-}
-
-fn load_script(sid: String, token: Option<String>) -> String {
-    format!("
-<script>
-    const sessionId = '{sid}';
-
-    function downloadFile(filename, _id_) {{
-        window.location.href = `/download/${{sessionId}}/${{filename}}`;
-        const element = document.getElementById(_id_);
-        element.style.color = 'gold';
-            setTimeout(() => {{
-                element.style.color = 'white';
-            }}, 1000);
-    }}
-
-    function copyLink() {{
-        navigator.clipboard.writeText(`{}/session/${{sessionId}}`);
-        const element = document.getElementById(\"id\");
-        element.style.color = 'pink';
-            setTimeout(() => {{
-                element.style.color = 'rgb(129, 129, 129)';
-            }}, 1000);
-    }}
-
-    function downloadAll() {{
-        window.location.href = `/download/${{sessionId}}`;
-        const element = document.getElementById(\"id\");
-        element.style.color = 'green';
-            setTimeout(() => {{
-                element.style.color = 'rgb(129, 129, 129)';
-            }}, 1000);
-    }}
-
-    function deleteAll() {{
-        fetch(`/delete/${{sessionId}}`, {{ method: 'POST', credentials: \"same-origin\", headers: {{\"token\": '{}'}} }})
-            .then(data => {{
-                window.location = \"/\";
-            }})
-            .catch(error => console.error('Error:', error));
-    }}
-</script>", get_hostname(), token.unwrap_or("YOU ARE NOT THE OWNER".to_string()))
-}
-
 pub fn load_all(sid: String, expiration: u64, files: Vec<(String, u64)>, token: Option<String>) -> String {
-    let mut one = "<!DOCTYPE html>\n<html lang=\"en\">".to_string();
-    one += load_head(&sid).as_str();
-    one += "<body>";
-    one += load_top(&sid, expiration).as_str();
-    one += load_list(files).as_str();
-    one += load_bottom(token.is_some()).as_str();
-    one += "</body>\n</html>";
-    one += load_script(sid, token).as_str();
-    one
+    let file_items = files
+        .into_iter()
+        .map(|(filename, filesize)| {
+            let str = random_str(12);
+            format!(
+                "<div class=\"file-item\">
+                    <span id=\"{id}\" class=\"file-info\">{filename}</span>
+                    <h3 class=\"file-size\">{size}</h3>
+                    <button class=\"download-btn\" onclick=\"downloadFile('{filename}', '{id}')\">Download</button>
+                 </div>",
+                id = str,
+                filename = filename,
+                size = format_file_size(filesize)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let html_template = include_str!("../fup-session.html");
+
+    html_template
+        .replace("{{sid}}", &sid)
+        .replace("{{expires}}", &format_utc_time(expiration))
+        .replace("{{file_items}}", &file_items)
+        .replace("{{hostname}}", &get_hostname())
+        .replace(
+            "{{delete_button}}",
+            &if token.is_some() {
+                "<button class=\"delete-all-btn\" onclick=\"deleteAll()\">Delete All</button>".to_string()
+            } else {
+                "".to_string()
+            },
+        )
+        .replace("{{token}}", &token.unwrap_or("YOU ARE NOT THE OWNER".to_string()))
 }
 
 pub fn get_style() -> io::Result<String> {
@@ -117,10 +74,81 @@ pub fn get_style() -> io::Result<String> {
     }
 }
 
-pub fn get_index() -> io::Result<String> {
-    if fs::exists("index.html")? {
-        fs::read_to_string("index.html")
+pub fn get_fileupload_index() -> io::Result<String> {
+    if fs::exists("fup-index.html")? {
+        fs::read_to_string("fup-index.html")
     } else {
-        Ok(INDEX_FILE.to_string())
+        Ok(FILE_UPLOAD_INDEX.to_string())
     }
+}
+
+pub fn get_index() -> io::Result<String> {
+    let content = if fs::exists("index.html")? {
+        fs::read_to_string("index.html")?
+    } else {
+        INDEX.to_string()
+    };
+    
+    let mut boxes = vec![];
+    let articles = get_articles2()?;
+    for article in articles {
+        let title = article.0;
+        boxes.push(format!("<div class=\"article-box\" onclick=\"window.location = '/a/{title}'\">
+      <div class=\"article-title\">{title}</div>
+      <div class=\"article-meta\">by MOBSkuchen — {}</div>
+    </div>", article.1))
+    }
+
+    Ok(content.replace("{{articles}}", &boxes.join("\n")))
+}
+
+pub fn get_article(article: String) -> io::Result<Option<String>> {
+    let path = format!("articles/{article}.html");
+    if fs::exists(&path)? {
+        Ok(Some(fs::read_to_string(path)?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn get_articles() -> io::Result<String> {
+    let mut files = vec![];
+    for rd in fs::read_dir("articles")? {
+        let entry = rd?;
+        if FileType::is_file(&entry.file_type()?) {
+            files.push(entry.file_name().to_str().unwrap().to_string())
+        }
+    }
+    Ok(files.join("\n"))
+}
+
+fn get_articles2() -> io::Result<Vec<(String, String)>> {
+    let mut files = vec![];
+
+    for rd in fs::read_dir("articles")? {
+        let entry = rd?;
+        if FileType::is_file(&entry.file_type()?) {
+            let metadata = entry.metadata()?;
+            
+            let created_time = metadata.created().or_else(|_| metadata.modified())?;
+            let datetime: DateTime<Local> = created_time.into();
+            let german_date = datetime.format("%d.%m.%Y").to_string();
+
+            let filename = entry.file_name().to_str().unwrap().trim_end_matches(".html").to_string();
+            files.push((filename, german_date));
+        }
+    }
+
+    Ok(files)
+}
+
+pub fn load_err_html(status: u16) -> io::Result<String> {
+    assert_ne!(status, 200);
+    
+    let content = if fs::exists("error.html")? {
+        fs::read_to_string("error.html")?
+    } else {
+        ERROR_TEMPLATE.to_string()
+    };
+    Ok(content.replace("{{errid}}", &*status.to_string()))
 }
