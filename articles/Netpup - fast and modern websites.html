@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" href="/r/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projects -> Netpup</title>
+</head>
+<article>
+<h4>Netpup - fast and modern websites</h4>
+<div><h3 class="author">by MOBSkuchen</h3><a class="back" href="/">go back</a></div>
+<p>Creating a basic website is easy. Or at least it should be. But nothing works without the HTTP-Server.<br><br>
+  Netpup offers a good middle ground between high performance, stability and functionality. It is written in rust and uses minimalism as a feature. <br><br>
+  Where other frameworks require the user to either write the code themselves, using the server as a library, netpup just uses a simple config to set routes and such.<br><br>
+  By using minimalism, netpup may miss a large group of users who require large apps with complex features and APIs, but netpup is not for those who seek an industrial solution. It is for those who overengineered in the past and can appreciate simplicity.<br><br>
+
+  This is an example of a netpup config (toml):
+<p class="code">
+  ip = "95.216.143.121"<br>
+  port = 5000<br>
+  cwd = "./data"<br>
+  <br>
+  # Make sure that routes with '*' come last<br>
+  [routes.resources]<br>
+  methods = ["GET"]<br>
+  url = "/r/*"<br>
+  path = "resources/*"<br>
+  <br>
+  [routes.main]<br>
+  methods = ["GET"]<br>
+  url = "/*"<br>
+  path = "index.html"<br>
+  content_type = "text/html"<br>
+</p>
+
+<p>As you can see, it isn't very much, but its fine to power something like a mini-tool, personal page, article, blog, whatever.<br><br>
+  And the best part is that its very easy to set up. Just run <p class="code">cargo install netpup</p>
+<p>
+  Create a config like shown before, and run it using <p class="code">netpup --start</p>
+<br><br>
+<p><a href="https://github.com/MOBSkuchen/netpup">Find this on GitHub</a> &nbsp;or&nbsp; <a href="https://crates.io/crates/netpup">Find this on crates.io</a></p>
+</article>
+</html>
