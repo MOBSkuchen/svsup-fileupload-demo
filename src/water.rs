@@ -1,5 +1,6 @@
 use std::fs;
 use std::fs::FileType;
+use std::path::{Path, PathBuf};
 use chrono::{DateTime, Local, TimeZone, Utc};
 use futures_util::io;
 use crate::{get_hostname, random_str};
@@ -121,19 +122,38 @@ pub fn get_articles() -> io::Result<String> {
     Ok(files.join("\n"))
 }
 
+fn list_files_sorted_by_modified<P: AsRef<Path>>(dir: P) -> io::Result<Vec<PathBuf>> {
+    let mut entries: Vec<_> = fs::read_dir(dir)?
+        .filter_map(|res| {
+            res.ok().and_then(|entry| {
+                let path = entry.path();
+                let metadata = fs::metadata(&path).ok()?;
+                let modified = metadata.modified().ok()?;
+                Some((path, modified))
+            })
+        })
+        .collect();
+
+    // Sort by modified time, descending (newest first)
+    entries.sort_by_key(|&(_, modified)| std::cmp::Reverse(modified));
+
+    // Return just the paths
+    Ok(entries.into_iter().map(|(path, _)| path).collect())
+}
+
 fn get_articles2() -> io::Result<Vec<(String, String)>> {
     let mut files = vec![];
 
-    for rd in fs::read_dir("articles")? {
-        let entry = rd?;
-        if FileType::is_file(&entry.file_type()?) {
+    for rd in list_files_sorted_by_modified("articles")? {
+        let entry = rd.as_path();
+        if entry.is_file() {
             let metadata = entry.metadata()?;
             
             let created_time = metadata.created().or_else(|_| metadata.modified())?;
             let datetime: DateTime<Local> = created_time.into();
             let german_date = datetime.format("%d.%m.%Y").to_string();
 
-            let filename = entry.file_name().to_str().unwrap().trim_end_matches(".html").to_string();
+            let filename = entry.file_name().unwrap().to_str().unwrap().trim_end_matches(".html").to_string();
             files.push((filename, german_date));
         }
     }
