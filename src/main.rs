@@ -16,6 +16,9 @@ use actix_web::dev::ServiceResponse;
 use actix_web::http::header::ContentType;
 use tokio::task;
 use lazy_static::lazy_static;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use rustls::pki_types::pem::PemObject;
+use rustls::ServerConfig;
 use crate::fileupload::{delete, download_file, download_zip, fup_ld_index, get_info, is_entry_owner, load_sesh, upload};
 use crate::water::{get_article, get_articles, get_index, get_style, load_err_html};
 
@@ -107,8 +110,29 @@ pub fn render_error<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B
     ))
 }
 
+fn load_rustls_config() -> ServerConfig {
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .unwrap();
+
+    // load TLS key/cert files
+    let cert_chain = CertificateDer::pem_file_iter("/etc/letsencrypt/live/suprime.sonvogel.com/fullchain.pem")
+        .unwrap()
+        .flatten()
+        .collect();
+
+    let key_der =
+        PrivateKeyDer::from_pem_file("/etc/letsencrypt/live/suprime.sonvogel.com/privkey.pem").expect("Could not locate PKCS 8 private keys.");
+
+    ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, key_der)
+        .unwrap()
+}
+
 #[actix_web::main]
 async fn main() -> io::Result<()> {
+    let config = load_rustls_config();
     mod_host();
     println!("Host: {}", get_hostname());
     fs::create_dir_all("sessions")?;
@@ -138,7 +162,7 @@ async fn main() -> io::Result<()> {
         .route("/f/session/{session}", web::get().to(load_sesh))
         .route("/f/index", web::get().to(fup_ld_index))
     )
-        .bind(get_hostname())?
+        .bind_rustls_0_23(get_hostname(), config)?
         .run()
         .await
 }
